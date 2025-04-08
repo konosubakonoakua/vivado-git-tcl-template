@@ -1,5 +1,5 @@
 proc _version_check {} {
-  source ./info.tcl
+  source ./config.tcl
 
   set ver [lindex [split $::env(XILINX_VIVADO) /] end]
   if {$ver ne $_vivado_version} {
@@ -32,14 +32,14 @@ proc _bd_create {_bd_script bd_name} {
 }
 
 proc _bd_export {} {
-    source ./info.tcl
+    source ./config.tcl
 
     write_bd_tcl -force -no_project_wrapper $_bd_script
     puts "INFO: Exported Block Design to: $_bd_script"
 }
 
 proc _hdf_export {} {
-  source ./info.tcl
+  source ./config.tcl
 
   set vivado_version [lindex [split $::env(XILINX_VIVADO) "/"] end]
   set is_post_2019_2 [expr {[package vcompare $vivado_version "2019.2"] >= 0}]
@@ -57,7 +57,7 @@ proc _hdf_export {} {
 }
 
 proc _project_create {} {
-  source ./info.tcl
+  source ./config.tcl
 
   set _outdir ../proj/$_proj_name
   file mkdir $_outdir
@@ -91,7 +91,7 @@ proc _project_create {} {
 }
 
 proc _project_build {} {
-  source ./info.tcl
+  source ./config.tcl
 
   upgrade_ip [get_ips]
 
@@ -103,7 +103,7 @@ proc _project_build {} {
 }
 
 proc _project_archive {} {
-  source ./info.tcl
+  source ./config.tcl
   set _timestamp [clock format [clock seconds] -format "%Y%m%d_%H%M%S"]
   set _archive [file join $_archive_path "${_proj_name}_${_timestamp}.xpr"]
   archive_project -force $_ar

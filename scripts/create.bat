@@ -1,10 +1,12 @@
 @echo off
-set VIVADO_PATH="C:\Xilinx\Vivado\2021.1\bin\vivado.bat"
+set VIVADO_VERSION=%VIVADO_VERSION%
+if "%VIVADO_VERSION%"=="" set VIVADO_VERSION=2021.1
 
+set VIVADO_PATH="C:\Xilinx\Vivado\%VIVADO_VERSION%\bin\vivado.bat"
 set TCL_SCRIPT="create.tcl"
 
 if not exist %VIVADO_PATH% (
-    echo Vivado not found, please check VIVADO_PATH.
+    echo Vivado not found at %VIVADO_PATH%, please check VIVADO_VERSION or installation.
     pause
     exit /b 1
 )

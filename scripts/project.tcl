@@ -1,5 +1,8 @@
+set script_dir [file dirname [info script]]
+
 proc _version_check {} {
-  source ./config.tcl
+  global script_dir
+  source [file join $script_dir config.tcl]
 
   set ver [lindex [split $::env(XILINX_VIVADO) /] end]
   if {$ver ne $_vivado_version} {
@@ -32,14 +35,16 @@ proc _bd_create {_bd_script bd_name} {
 }
 
 proc _bd_export {} {
-    source ./config.tcl
+  global script_dir
+  source [file join $script_dir config.tcl]
 
-    write_bd_tcl -force -no_project_wrapper $_bd_script
-    puts "INFO: Exported Block Design to: $_bd_script"
+  write_bd_tcl -force -no_project_wrapper $_bd_script
+  puts "INFO: Exported Block Design to: $_bd_script"
 }
 
 proc _hdf_export {} {
-  source ./config.tcl
+  global script_dir
+  source [file join $script_dir config.tcl]
 
   set vivado_version [lindex [split $::env(XILINX_VIVADO) "/"] end]
   set is_post_2019_2 [expr {[package vcompare $vivado_version "2019.2"] >= 0}]
@@ -56,42 +61,110 @@ proc _hdf_export {} {
 
 }
 
+# proc _project_create {} {
+#   global script_dir
+#   source [file join $script_dir config.tcl]
+#
+#   set _outdir [file normalize [file join $script_dir .. proj $_proj_name]]
+#   file mkdir $_outdir
+#   create_project $_proj_name $_outdir -part $_fpgapart -force
+#
+#   add_files -fileset [current_fileset] -force -norecurse $_hdl_files
+#   add_files -fileset [current_fileset] -force -norecurse $_ip_files
+#   add_files -fileset [get_filesets sim_1] -force -norecurse $_sim_files
+#   add_files -fileset [current_fileset -constrset] -force -norecurse $_constr_files
+#   puts "INFO: All files added."
+#
+#   set_property ip_repo_paths $_ip_repo_paths [current_project]
+#   update_ip_catalog
+#   puts "INFO: IP catalog updated."
+#
+#   _bd_create $_bd_script $_bd_name
+#
+#   set_property top $_tb_top [get_filesets sim_1]
+#   set_property top_lib xil_defaultlib [get_filesets sim_1]
+#   update_compile_order -fileset sim_1
+#
+#   set_property top $_top [current_fileset]
+#   puts "INFO: $_top set as top."
+#
+#   set_property generic DEBUG=TRUE [current_fileset]
+#   set_property AUTO_INCREMENTAL_CHECKPOINT 1 [current_run -implementation]
+#
+#   update_compile_order
+#
+#   puts "INFO: Project created successfully."
+# }
+#
 proc _project_create {} {
-  source ./config.tcl
+  global script_dir
 
-  set _outdir ../proj/$_proj_name
+  source [file join $script_dir config.tcl]
+
+  set _outdir [file normalize [file join $script_dir .. proj $_proj_name]]
   file mkdir $_outdir
   create_project $_proj_name $_outdir -part $_fpgapart -force
 
-  add_files -fileset [current_fileset] -force -norecurse $_hdl_files
-  add_files -fileset [current_fileset] -force -norecurse $_ip_files
-  add_files -fileset [get_filesets sim_1] -force -norecurse $_sim_files
-  add_files -fileset [current_fileset -constrset] -force -norecurse $_constr_files
-  puts "INFO: All files added."
+  _add_files_safely "HDL"       $_hdl_files    [current_fileset]
+  _add_files_safely "IP"        $_ip_files     [current_fileset]
+  _add_files_safely "Simulation" $_sim_files   [get_filesets sim_1]
+  _add_files_safely "Constraint" $_constr_files [current_fileset -constrset]
 
-  set_property ip_repo_paths $_ip_repo_paths [current_project]
-  update_ip_catalog
-  puts "INFO: IP catalog updated."
+  if {[info exists _ip_repo_paths] && [llength $_ip_repo_paths] > 0} {
+    set_property ip_repo_paths $_ip_repo_paths [current_project]
+    update_ip_catalog
+    puts "INFO: IP catalog updated with [llength $_ip_repo_paths] paths."
+  } else {
+    puts "WARNING: No IP repository paths specified."
+  }
 
-  _bd_create $__bd_script $_bd_name
+  if {[info exists _bd_script] && [info exists _bd_name]} {
+    _bd_create $_bd_script $_bd_name
+  }
 
-  set_property top $_tb_top [get_filesets sim_1]
-  set_property top_lib xil_defaultlib [get_filesets sim_1]
-  update_compile_order -fileset sim_1
+  if {[info exists _tb_top] && $_tb_top ne ""} {
+    set_property top $_tb_top [get_filesets sim_1]
+    set_property top_lib xil_defaultlib [get_filesets sim_1]
+    update_compile_order -fileset sim_1
+  }
 
-  set_property top $_top [current_fileset]
-  puts "INFO: $_top set as top."
+  if {[info exists _top] && $_top ne ""} {
+    set_property top $_top [current_fileset]
+    puts "INFO: Top module set to $_top."
+  }
 
   set_property generic DEBUG=TRUE [current_fileset]
   set_property AUTO_INCREMENTAL_CHECKPOINT 1 [current_run -implementation]
-
   update_compile_order
 
-  puts "INFO: Project created successfully."
+  puts "INFO: Project created successfully in $_outdir"
+}
+
+proc _add_files_safely {type file_list fileset} {
+  if {![info exists file_list] || [llength $file_list] == 0} {
+    puts "WARNING: No $type files specified."
+    return
+  }
+
+  set missing_files [list]
+  foreach f $file_list {
+    if {![file exists $f]} {
+      lappend missing_files $f
+    }
+  }
+
+  if {[llength $missing_files] > 0} {
+    puts "ERROR: Missing $type files:\n  [join $missing_files \n  ]"
+    error "Critical files missing"
+  }
+
+  puts "INFO: Adding [llength $file_list] $type files..."
+  add_files -fileset $fileset -force -norecurse $file_list
 }
 
 proc _project_build {} {
-  source ./config.tcl
+  global script_dir
+  source [file join $script_dir config.tcl]
 
   upgrade_ip [get_ips]
 
@@ -103,7 +176,8 @@ proc _project_build {} {
 }
 
 proc _project_archive {} {
-  source ./config.tcl
+  global script_dir
+  source [file join $script_dir config.tcl]
   set _timestamp [clock format [clock seconds] -format "%Y%m%d_%H%M%S"]
   set _archive [file join $_archive_path "${_proj_name}_${_timestamp}.xpr"]
   archive_project -force $_ar
